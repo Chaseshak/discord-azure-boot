@@ -11,6 +11,8 @@ services:
     restart: unless-stopped
     depends_on:
       - mongo
+    ports:
+      - "3000:3000"
     environment:
       - DISCORD_AZURE_BOOT_CONFIG_FILE=/app/config.json5
     volumes:
