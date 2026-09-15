@@ -1,11 +1,20 @@
-version: "3.7"
 services:
   mongo:
     image: mongo:7.0.7
-    restart: always
-    environment:
-      MONGO_INITDB_DATABASE: dev-discord-azure-boot
+    restart: unless-stopped
+    command: ["--wiredTigerCacheSizeGB", "0.25"]
     volumes:
-      - "./container-data/mongo:/data/db"
-    ports:
-      - "27017:27017"
+      - mongo_data:/data/db
+
+  bot:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      - DISCORD_AZURE_BOOT_CONFIG_FILE=/app/config.json5
+    volumes:
+      - ./config.json5:/app/config.json5:ro
+
+volumes:
+  mongo_data:
