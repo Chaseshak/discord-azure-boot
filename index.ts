@@ -25,6 +25,7 @@ import type {
 	Response as FetchResponse,
 } from "node-fetch";
 import moment from "moment";
+import http from "http";
 
 import { loadConfig, BotConfig, VMConfig, vmCfgByFriendlyName } from "./config";
 
@@ -153,7 +154,7 @@ function vmStateFromPower(power: VMPowerState): VMState {
 
 	// Map friendly name
 	let friendlyName = "Unknown";
-	
+
 	switch (power) {
 		case VMPowerState.Deallocated:
 			friendlyName = "Turned Off";
@@ -225,12 +226,12 @@ class DiscordInteraction {
 	 * Bot application context.
 	 */
 	bot: Bot;
-	
+
 	/**
 	 * Identifier of Discord interaction.
 	 */
 	interaction_id: InteractionID;
-	
+
 	/**
 	 * Create a new client.
 	 * @param interaction_id Discord interaction identifier.
@@ -254,7 +255,7 @@ class DiscordInteraction {
 
 		opts["headers"]["Authorization"] = `Bot ${this.bot.discord.token}`;
 		opts["headers"]["Content-Type"] = "application/json";
-		
+
 		const resp = await fetch(`${DISCORD_HTTP_PATH}${path}`, opts);
 
 		if (resp.status < 200 || resp.status >= 300) {
@@ -275,7 +276,7 @@ class DiscordInteraction {
 		if (embeds === undefined) {
 			embeds = [];
 		}
-		
+
 		const resp = await this.fetch(`/interactions/${this.interaction_id.id}/${this.interaction_id.token}/callback`, {
 			method: "POST",
 			body: JSON.stringify({
@@ -311,7 +312,7 @@ class DiscordInteraction {
 		if (embeds === undefined) {
 			embeds = [];
 		}
-		
+
 		const resp = await this.fetch(`/webhooks/${this.bot.cfg.discord.applicationID}/${this.interaction_id.token}/messages/@original`, {
 			method: "PATCH",
 			body: JSON.stringify({
@@ -323,14 +324,14 @@ class DiscordInteraction {
 }
 
 /**
- * A Discord message which can be editted to show the user the current status of an ongoing operation. This message can either be 
+ * A Discord message which can be editted to show the user the current status of an ongoing operation. This message can either be
  */
 class DiscordCtrlMsg {
 	/**
 	 * Application context.
 	 */
 	bot: Bot;
-	
+
 	/**
 	 * Identifier of control message.
 	 */
@@ -359,12 +360,12 @@ class DiscordCtrlMsg {
 				if (guild === undefined) {
 					throw new Error(`could not edit message as its guild with ID ${this.id.location.guildID} could not be found`);
 				}
-				
+
 				const channel = await guild.channels.cache.get(this.id.location.channelID);
 				if (channel === undefined) {
 					throw new Error(`could not edit message as its channel with ID ${this.id.location.channelID} could not be found`);
 				}
-				
+
 				if (channel.isText() === true) {
 					const msg = await (channel as TextChannel).messages.cache.get(this.id.msgID);
 
@@ -453,7 +454,7 @@ class PowerRequest {
 	 * The data which will be serialized into the database.
 	 */
 	data: PowerRequestData;
-	
+
 	/**
 	 * Construct a power request.
 	 * @param bot Bot application context.
@@ -505,7 +506,7 @@ class PowerRequest {
 			this.bot.log.warn("powerState(): vm instance had no .statuses field", { vmInstance });
 			return undefined;
 		}
-		
+
 		const powerStates = vmInstance.statuses.filter((v) => v.code.indexOf("PowerState/") !== -1);
 
 		if (powerStates.length === 0) {
@@ -546,7 +547,7 @@ class PowerRequest {
 
 	/**
 	 * Check the status of the virtual machine and perform the required action to make its power state match the request state. Should be called at a regular interval until the virtual machine is in the correct state.
-	 * @returns Resolves when done processing. 
+	 * @returns Resolves when done processing.
 	 */
 	async poll(): Promise<void> {
 		try {
@@ -590,7 +591,7 @@ class PowerRequest {
 			if (this.data.stage.flip_flop === false) {
 				waitEmoji = ":hourglass_flowing_sand:";
 			}
-			
+
 			let embed: MessageEmbedOptions = {
 				title: `${targetTitleWord} ${this.data.vm_cfg.friendlyName} Server`,
 				color: targetColor,
@@ -606,13 +607,13 @@ class PowerRequest {
 			if ("in_progress" in this.data.stage) {
 				// Estimate duration from past invocations
 				let estStr = "";
-				
+
 				const otherReqs = await this.bot.db.power_requests.find({
 					vm_cfg: this.data.vm_cfg,
 					"stage.current": "success",
 					"stage.in_progress.start_power": this.data.stage.in_progress.start_power,
 				}).limit(10).toArray();
-				
+
 				if (otherReqs.length > 0) {
 					const totalDiffs = otherReqs.map((doc) => {
 							return doc.stage.success.time - doc.stage.in_progress.time;
@@ -623,7 +624,7 @@ class PowerRequest {
 
 					estStr = ` (est. ${avrgDurStr})`;
 				}
-					
+
 				// Current duration
 				const startT = moment.unix(this.data.stage.in_progress.time/1000);
 				const now = moment();
@@ -635,7 +636,7 @@ class PowerRequest {
 					inline: true,
 				});
 			}
-			
+
 			if (powerState !== undefined) {
 				const vmStatePower = vmStateFromPower(powerState);
 				// Show user the current state
@@ -699,7 +700,7 @@ class PowerRequest {
 		} catch (e) {
 			// Record error safely
 			this.bot.log.error("failed to poll PowerRequest", { error: e, data: this.data });
-			
+
 			this.data.stage.current = "error";
 			this.data.stage.error = {
 				time: moment().valueOf(),
@@ -728,12 +729,12 @@ interface PowerRequestData {
 	 * Database ID of power request.
 	 */
 	_id?: ObjectId,
-	
+
 	/**
 	 * Identifier of a Discord message which will be used to interact with the user.
 	 */
 	ctrl_msg_id: DiscordCtrlMsgID;
-	
+
 	/**
 	 * The virtual machine configuration for the server specified by the user.
 	 */
@@ -796,7 +797,7 @@ interface PowerRequestData {
 			 * The unix time when the error occurred.
 			 */
 			time: number;
-			
+
 			/**
 			 * Internal error details. Not to be shown to the user.
 			 */
@@ -886,7 +887,7 @@ class BootRequest {
 	}
 
 	/**
-	 * Perform the required action based on the current state of the boot request. 
+	 * Perform the required action based on the current state of the boot request.
 	 * @returns Resolves when any actions have been completed. Meant to be real time so should not block for too long.
 	 */
 	async poll(): Promise<void> {
@@ -907,7 +908,7 @@ interface BootRequestData {
 	 * Database ID of boot request.
 	 */
 	_id?: ObjectId,
-	
+
 	/**
 	 * The virtual machine which the user requested be started.
 	 */
@@ -923,7 +924,7 @@ interface BootRequestData {
 	 */
 	stage: {
 		current: BootRequestStage;
-		
+
 		requested: {};
 
 		booting?: {
@@ -992,7 +993,7 @@ enum BootRequestStage {
 	 */
 	Error = "error",
 }
-	
+
 
 /**
  * Provides bot functionality. The init() method must be called before anything else can be called.
@@ -1006,7 +1007,8 @@ class Bot {
 	db: BotDB;
 	discord: DiscordClient;
 	pollOngoingInterval: NodeJS.Timeout;
-	
+	webhookServer?: http.Server;
+
   /**
 	 * Creates a partially setup Bot class. Before any other methods are run Bot.init() must be called.
 	 * @param {Winston.Logger} log Parent logger.
@@ -1023,7 +1025,7 @@ class Bot {
   async init() {
 	  // Authenticate with the Azure API
 		this.log.info("trying to authenticate with azure");
-		
+
 		const azureCreds = new ClientSecretCredential(this.cfg.azure.directoryID, this.cfg.azure.applicationID, this.cfg.azure.accessToken);
 
 	  this.azureCompute = new ComputeManagementClient(azureCreds, this.cfg.azure.subscriptionID);
@@ -1047,7 +1049,7 @@ class Bot {
 			power_requests: this.mongoDB.collection("power_requests"),
 			boot_requests: this.mongoDB.collection("boot_requests"),
 		};
-		
+
 		this.log.info("connected to mongodb");
 
 		// Connect to Discord
@@ -1079,11 +1081,13 @@ class Bot {
 		await discordReadyProm.promise;
 		this.log.info("connected to discord");
 
+		this.startWebhookServer();
+
 		// Setup Discord slash commands
 		if (this.cfg.discord.permissionRoleID !== null) {
 			this.log.info(`restricting Discord commands to users with role ID ${this.cfg.discord.permissionRoleID}`);
 		}
-		
+
 		const VM_CHOICES = this.cfg.vms.map((vm) => {
 			return {
 				name: vm.friendlyName,
@@ -1095,7 +1099,7 @@ class Bot {
 			new DiscordSlashCommandBuilder()
 				.setName(BOOT_CMD_NAME)
 				.setDescription("Start a game server")
-				.addStringOption((opt) => 
+				.addStringOption((opt) =>
 					opt
 						.setName("server")
 						.setDescription("The server to start")
@@ -1105,7 +1109,7 @@ class Bot {
 			new DiscordSlashCommandBuilder()
 				.setName(SHUTDOWN_CMD_NAME)
 				.setDescription("Turn off a gamer server")
-				.addStringOption((opt) => 
+				.addStringOption((opt) =>
 					opt
 						.setName("server")
 						.setDescription("The server to shutdown")
@@ -1113,17 +1117,17 @@ class Bot {
 						.addChoices(...VM_CHOICES)
 				),
 		].map((cmd) => cmd.toJSON());
-		
+
 		const discordREST = new DiscordREST({ version: "9" }).setToken(this.cfg.discord.botToken);
 		if (this.cfg.discord.guildID) {
 			// Using guild specific commands
 			// Sanity check that the specified guild exists
 			const guild = this.discord.guilds.cache.get(this.cfg.discord.guildID);
-			
+
 			if (guild === undefined) {
 				throw new Error(`Could not find guild with ID ${this.cfg.discord.guildID}, maybe the bot doesn't have access to this guild (use the invitation link in the logs above)`);
 			}
-			
+
 			this.log.info(`using guild ID ${this.cfg.discord.guildID} local slash commands`);
 
 			await discordREST.put(
@@ -1150,10 +1154,74 @@ class Bot {
   async cleanup() {
 		// Stop poll ongoing interval
 		clearInterval(this.pollOngoingInterval);
-		
+
+		if (this.webhookServer !== undefined) {
+			await new Promise<void>((resolve, reject) => {
+				this.webhookServer.close((err) => {
+					if (err !== undefined) {
+						reject(err);
+						return;
+					}
+					resolve();
+				});
+			});
+		}
+
 	  // Disconnect from MongoDB
 	  this.mongoClient.close();
   }
+
+	startWebhookServer(): void {
+		const webhookCfg = this.cfg.webhook;
+		if (webhookCfg === undefined || webhookCfg.enabled === false) {
+			this.log.info("webhook server disabled");
+			return;
+		}
+
+		const webhookChannelID = webhookCfg.channelID;
+		if (webhookChannelID === undefined || webhookChannelID === "") {
+			this.log.info("webhook server disabled: webhook.channelID not configured");
+			return;
+		}
+
+		const port = webhookCfg.port ?? 3000;
+		const path = webhookCfg.path ?? "/api/valheim-shutdown";
+		this.webhookServer = http.createServer(async (req, res) => {
+			if (req.method !== "POST" || req.url !== path) {
+				res.writeHead(404);
+				res.end();
+				return;
+			}
+
+			let body = "";
+			req.on("data", (chunk) => {
+				body += chunk.toString();
+			});
+
+			req.on("end", async () => {
+				try {
+					const channel = await this.discord.channels.fetch(webhookChannelID);
+					if (channel === null || channel.isText() !== true) {
+						throw new Error(`channel ${webhookChannelID} was not found or is not a text channel`);
+					}
+
+					const textChannel = channel as TextChannel;
+					await textChannel.send("⚠️ **Valheim Server Notice**: Scheduled auto-shutdown in **15 minutes**! Save and log off. When the server finishes shutting down, run **/boot** to bring it back online.");
+
+					res.writeHead(200, { "Content-Type": "application/json" });
+					res.end(JSON.stringify({ status: "ok" }));
+				} catch (err) {
+					this.log.error("failed to dispatch shutdown alert", { error: err, body });
+					res.writeHead(500, { "Content-Type": "application/json" });
+					res.end(JSON.stringify({ error: "Internal Error" }));
+				}
+			});
+		});
+
+		this.webhookServer.listen(port, () => {
+			this.log.info(`webhook server listening on port ${port} at ${path}`);
+		});
+	}
 
 	/**
 	 * Runs whenever a Discord slash command is invoked.
@@ -1203,7 +1271,7 @@ class Bot {
 				guildID: interaction.guildID,
 				channelID: interaction.channelID,
 			});
-			
+
 			await bootReq.initBoot(ctrlMsgID);
 			await bootReq.poll();
 			await bootReq.save();
@@ -1296,7 +1364,7 @@ async function main(log) {
 	await bot.waitForExit();
 
   await bot.cleanup();
-	
+
 }
 
 // Invoke main

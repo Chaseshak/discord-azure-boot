@@ -29,6 +29,31 @@ export type VMConfig = z.infer<typeof CVMConfig>;
  */
 export const CBotConfig = z.object({
 	/**
+	 * Optional webhook listener configuration used to receive external notices and post them to Discord.
+	 */
+	webhook: z.optional(z.object({
+		/**
+		 * Whether the webhook listener should be started.
+		 */
+		enabled: z.optional(z.boolean()).default(true),
+
+		/**
+		 * TCP port on which the webhook listener should bind.
+		 */
+		port: z.optional(z.number()).default(3000),
+
+		/**
+		 * Discord channel ID where webhook alerts should be sent.
+		 */
+		channelID: z.optional(z.string()),
+
+		/**
+		 * HTTP path to listen on for shutdown notices.
+		 */
+		path: z.optional(z.string()).default("/api/valheim-shutdown"),
+	})),
+
+	/**
 	 * Azure client information.
 	 */
 	azure: z.object({
@@ -58,7 +83,7 @@ export const CBotConfig = z.object({
 	 */
 	mongodb: z.object({
 		/**
-		 * A mongodb:// connection URI. 
+		 * A mongodb:// connection URI.
 		 */
 		connectionURI: z.string(),
 
@@ -112,7 +137,7 @@ export function vmCfgByFriendlyName(cfg: BotConfig, name: string): VMConfig {
 	if (vmSearch.length === 0) {
 		throw new Error(`could not find virtual machine configuration with friendly name "${name}"`);
 	}
-	
+
 	if (vmSearch.length > 1) {
 		throw new Error(`found more than one virtual machine configuration with friendly name "${name}", this should not happen as these friendly names should be unique`);
 	}

@@ -1,5 +1,30 @@
 {
   /**
+	* Optional webhook listener used for Azure shutdown notices.
+	*/
+  "webhook": {
+    /**
+     * Whether to start the webhook listener.
+     */
+    "enabled": true,
+
+    /**
+     * TCP port to listen on for the webhook.
+     */
+    "port": 3000,
+
+    /**
+     * Discord channel ID which should receive webhook notices.
+     */
+    "channelID": "",
+
+    /**
+     * HTTP path to listen on for webhook requests.
+     */
+    "path": "/api/valheim-shutdown",
+  },
+
+  /**
 	* Azure client information.
 	*/
   "azure": {
@@ -32,7 +57,7 @@
 	   * A mongodb:// connection URI.
 	   */
 	  "connectionURI": "",
-		
+
 	  /**
 	   * Name of database in which to store bot data.
 	   */
@@ -76,7 +101,7 @@
 		   * The name of the Azure resource group in which this virtual machine exists.
 		   */
 		  "resourceGroup": "",
-		  
+
 		  /**
 		   * The name of the virtual machine in Azure.
 		   */
