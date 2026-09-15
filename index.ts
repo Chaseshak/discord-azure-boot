@@ -69,7 +69,7 @@ const VM_POWER_STATE_STOPPING = "PowerState/stopping";
 /**
  * Color which represents an action in progress. Decimal version of hex code #ffff75 (old #e6e630).
  */
-const DEC_COLOR_IN_PROGRESS = 16777077;
+const DEC_COLOR_IN_PROGRESS = 16777078;
 
 /**
  * Color which shows something is being turned on. Decimal version of hex code #7cff75 (old #39e630).
@@ -80,6 +80,16 @@ const DEC_COLOR_START = 8191861;
  * Color which shows something is being turned off. Decimal version of hex code #ff6161 (old #e01f1f).
  */
 const DEC_COLOR_STOP = 16736609;
+
+/**
+ * Color which shows a server is online and healthy. Decimal version of hex code #53d26f.
+ */
+const DEC_COLOR_OK = 5536031;
+
+/**
+ * Color which shows a server is offline or stopped. Decimal version of hex code #e65b5b.
+ */
+const DEC_COLOR_OFFLINE = 14985435;
 
 /**
  * The power state of an Azure virtual machine.
@@ -1317,7 +1327,44 @@ class Bot {
 			}
 
 			const stateText = vmStateFromPower(state).friendlyName;
-			await interaction.editReply(`The ${vmCfg.friendlyName} server is **${stateText}**.`);
+			const embed: MessageEmbedOptions = {
+				title: `${vmCfg.friendlyName} Server`,
+				color: state === VMPowerState.Running ? DEC_COLOR_OK : DEC_COLOR_OFFLINE,
+				description: `**${stateText}**`,
+				fields: [],
+			};
+
+			if (state === VMPowerState.Running || state === VMPowerState.Starting) {
+				const lastBoot = await this.db.power_requests.findOne({
+					"vm_cfg.friendlyName": vmCfg.friendlyName,
+					"target_power": VMPowerState.Running,
+					"stage.current": "success",
+				}, { sort: { "stage.success.time": -1 } });
+
+				if (lastBoot !== null && lastBoot.stage !== undefined && lastBoot.stage.success !== undefined) {
+					const uptimeMs = moment().diff(moment(lastBoot.stage.success.time));
+					const uptimeStr = moment.utc(uptimeMs).format("HH:mm:ss");
+					embed.fields.push({
+						name: "Uptime",
+						value: uptimeStr,
+						inline: true,
+					});
+				} else {
+					embed.fields.push({
+						name: "Uptime",
+						value: "Unknown",
+						inline: true,
+					});
+				}
+			} else {
+				embed.fields.push({
+					name: "Uptime",
+					value: "Offline",
+					inline: true,
+				});
+			}
+
+			await interaction.editReply({ embeds: [embed] });
 			return;
 		} else if (interaction.commandName === SHUTDOWN_CMD_NAME) {
 			// Find parameters about vm from config
