@@ -54,6 +54,11 @@ const BOOT_CMD_NAME = "boot";
  */
 const SHUTDOWN_CMD_NAME = "shutdown";
 
+/**
+ * The status slash command name.
+ */
+const STATUS_CMD_NAME = "status";
+
 const VM_POWER_STATE_DEALLOCATED = "PowerState/deallocated";
 const VM_POWER_STATE_DEALLOCATING = "PowerState/deallocating";
 const VM_POWER_STATE_RUNNING = "PowerState/running";
@@ -1116,6 +1121,16 @@ class Bot {
 						.setRequired(true)
 						.addChoices(...VM_CHOICES)
 				),
+			new DiscordSlashCommandBuilder()
+				.setName(STATUS_CMD_NAME)
+				.setDescription("Check a server's current state")
+				.addStringOption((opt) =>
+					opt
+						.setName("server")
+						.setDescription("The server to inspect")
+						.setRequired(true)
+						.addChoices(...VM_CHOICES)
+				),
 		].map((cmd) => cmd.toJSON());
 
 		const discordREST = new DiscordREST({ version: "9" }).setToken(this.cfg.discord.botToken);
@@ -1276,6 +1291,33 @@ class Bot {
 			await bootReq.poll();
 			await bootReq.save();
 
+			return;
+		} else if (interaction.commandName === STATUS_CMD_NAME) {
+			const optName = interaction.options.getString("server");
+			const vmCfg = vmCfgByFriendlyName(this.cfg, optName);
+			await interaction.deferReply();
+
+			const vmInstance = await this.azureCompute.virtualMachines.instanceView(vmCfg.resourceGroup, vmCfg.azureName);
+			if (vmInstance.statuses === undefined) {
+				await interaction.editReply(`I could not determine the current state for the ${vmCfg.friendlyName} server.`);
+				return;
+			}
+
+			const powerStates = vmInstance.statuses.filter((v) => v.code !== undefined && v.code.indexOf("PowerState/") !== -1);
+			if (powerStates.length === 0) {
+				await interaction.editReply(`The ${vmCfg.friendlyName} server does not currently report a power state.`);
+				return;
+			}
+
+			const code = powerStates[powerStates.length-1].code;
+			const state = vmPowerStateFromStr(code);
+			if (state === undefined) {
+				await interaction.editReply(`The ${vmCfg.friendlyName} server is in an unknown power state (${code}).`);
+				return;
+			}
+
+			const stateText = vmStateFromPower(state).friendlyName;
+			await interaction.editReply(`The ${vmCfg.friendlyName} server is **${stateText}**.`);
 			return;
 		} else if (interaction.commandName === SHUTDOWN_CMD_NAME) {
 			// Find parameters about vm from config
